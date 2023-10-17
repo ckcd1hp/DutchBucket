@@ -22,6 +22,8 @@ DallasTemperature sensors(&oneWire);
 Preferences preferences;
 
 int floatSwitchState = 0;
+// maximum temp of the reservoir recorded
+float maxResTemp;
 
 void setup()
 {
@@ -38,7 +40,7 @@ void setup()
 
   // load saved data
   preferences.begin("dutchBucket", false);
-  float maxResTemp = preferences.getFloat("maxResTemp", 0);
+  maxResTemp = preferences.getFloat("maxResTemp", 0);
   Serial.println("Max Res Temp: " + String(maxResTemp));
   preferences.end();
 }
@@ -57,15 +59,14 @@ void loop()
       float tempF = sensors.getTempFByIndex(0);
       Serial.print(tempF);
       Serial.println("ºF");
-      // load saved data
-      preferences.begin("dutchBucket", false);
-      float maxResTemp = preferences.getFloat("maxResTemp", 0);
       if (tempF > maxResTemp)
       {
+        // load saved data
+        preferences.begin("dutchBucket", false);
         maxResTemp = tempF;
         preferences.putFloat("maxResTemp", maxResTemp);
+        preferences.end();
       }
-      preferences.end();
     }
     // get current hour 0-23
     int currentHour = rtc.getHour(true);
