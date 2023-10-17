@@ -39,10 +39,10 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
 {
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-    // mdns responder for esp32.local
-    if (MDNS.begin("MDNS_NAME"))
+    // mdns responder for [MDNS_NAME].local
+    if (MDNS.begin(MDNS_NAME))
     {
-        Serial.println("MDNS responder started, accessible via nftv2.local");
+        Serial.println("MDNS responder started, accessible via " + String(MDNS_NAME) + ".local");
     }
     delay(2000);
     // The function timeClient.update() syncs the local time to the NTP server. In the video I call this in the main loop. However, NTP servers dont like it if
