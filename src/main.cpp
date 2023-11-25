@@ -15,6 +15,12 @@
 void handleNewMessages(int numNewMessages);             // handling new messages from telegram user
 void controlWaterPump(int currentHour, int currentMin); // turn on water pump 3 times a day for a minute each
 void checkFloatSwitch(int currentHour);                 // check float switch twice a day and warn user if water level is low
+void sendNutrientReminder();                            // send reminder to refill nutrients every two weeks
+void updateNutrientReminder();                          // update reminder to two weeks later
+String getNewNutrientDate(unsigned long nutrientEpoch); // format nutrient date from epoch to readable date
+
+#define NUTRIENT_REMINDER_INTERVAL 1209600 // 2 weeks in seconds
+#define NUTRIENT_REMINDER_HOUR 9           // send reminder at 9 am
 
 extern ESP32Time rtc; // access esp32 internal real time clock
 
@@ -37,6 +43,8 @@ int floatSwitchState = 0;
 // maximum temp of the reservoir recorded
 float maxResTemp;
 bool waterPumpCommand = false;
+// plant nutrient reminder
+unsigned long nutrientReminderEpoch;
 
 void setup()
 {
@@ -56,6 +64,7 @@ void setup()
   // load saved data
   preferences.begin("dutchBucket", false);
   maxResTemp = preferences.getFloat("maxResTemp", 0);
+  nutrientReminderEpoch = preferences.getULong64("nRE", 0); // get saved reminder time in epoch seconds
   int startCounter = preferences.getUInt("startCounter", 0);
   if (startCounter != 0)
   {
@@ -105,6 +114,8 @@ void loop()
       // Update time using NTP at same time everyday
       if (currentHour == NTP_SYNC_HOUR)
         updateAndSyncTime();
+      if (currentHour == NUTRIENT_REMINDER_HOUR)
+        sendNutrientReminder();
       previousHour = currentHour;
     }
     previousMinute = currentMinute;
@@ -138,6 +149,37 @@ void checkFloatSwitch(int currentHour)
       bot.sendMessage(CHAT_ID, BOT_LOW_WATER_MESSAGE); // send bot greeting message
     }
   }
+}
+void updateNutrientReminder()
+{
+  // set next reminder
+  nutrientReminderEpoch = rtc.getEpoch() + NUTRIENT_REMINDER_INTERVAL;
+  // save to preferences
+  preferences.begin("dutchBucket", false);
+  preferences.putULong64("nRE", nutrientReminderEpoch);
+  preferences.end();
+  // message user to confirm new date
+  String botMessage = "Updated! You will be reminded on " + getNewNutrientDate(nutrientReminderEpoch) + " to refill your nutrients!";
+  // message user
+  bot.sendMessage(CHAT_ID, botMessage); // send bot confirmation
+}
+void sendNutrientReminder()
+{
+  // check if it is time to send nutrient reminder  !! also check if day matches in case reminder was updated after 9AM
+  if (rtc.getEpoch() >= nutrientReminderEpoch and nutrientReminderEpoch != 0)
+  {
+    // message user
+    bot.sendMessage(CHAT_ID, BOT_NUTRIENT_REMINDER_MESSAGE); // send bot reminder
+  }
+}
+String getNewNutrientDate(unsigned long nutrientEpoch)
+{
+  time_t now = (time_t)nutrientEpoch;
+  struct tm timeInfo;
+  localtime_r(&now, &timeInfo); // convert time_t to struct tm
+  char formattedTime[50];
+  strftime(formattedTime, 51, "%D", &timeInfo);
+  return String(formattedTime);
 }
 // Handle what happens when you receive new messages from telegram bot
 void handleNewMessages(int numNewMessages)
