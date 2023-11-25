@@ -14,7 +14,7 @@
 // function declarations
 void handleNewMessages(int numNewMessages);             // handling new messages from telegram user
 void controlWaterPump(int currentHour, int currentMin); // turn on water pump 3 times a day for a minute each
-void checkFloatSwitch(int currentHour);                 // check float switch twice a day and warn user if water level is low
+void checkFloatSwitch();                                // check float switch twice a day and warn user if water level is low
 void sendNutrientReminder();                            // send reminder to refill nutrients every two weeks
 void updateNutrientReminder();                          // update reminder to two weeks later
 String getNewNutrientDate(unsigned long nutrientEpoch); // format nutrient date from epoch to readable date
@@ -116,6 +116,8 @@ void loop()
         updateAndSyncTime();
       if (currentHour == NUTRIENT_REMINDER_HOUR)
         sendNutrientReminder();
+      if (currentHour == 6 or currentHour == 18)
+        checkFloatSwitch();
       previousHour = currentHour;
     }
     previousMinute = currentMinute;
@@ -136,18 +138,15 @@ void controlWaterPump(int currentHour, int currentMin)
   digitalWrite(WATER_PUMP_1_PIN, waterPumpCommand ? HIGH : LOW);
 }
 // check float switch at the beginning and end of day
-void checkFloatSwitch(int currentHour)
+void checkFloatSwitch()
 {
-  if (currentHour == 6 or currentHour == 18)
+  floatSwitchState = digitalRead(FLOAT_SWITCH_PIN);
+  Serial.println(floatSwitchState);
+  // alert user if float switch is tripped
+  if (floatSwitchState)
   {
-    floatSwitchState = digitalRead(FLOAT_SWITCH_PIN);
-    Serial.println(floatSwitchState);
-    // alert user if float switch is tripped
-    if (floatSwitchState)
-    {
-      // message user
-      bot.sendMessage(CHAT_ID, BOT_LOW_WATER_MESSAGE); // send bot greeting message
-    }
+    // message user
+    bot.sendMessage(CHAT_ID, BOT_LOW_WATER_MESSAGE); // send bot greeting message
   }
 }
 void updateNutrientReminder()
@@ -217,15 +216,14 @@ void handleNewMessages(int numNewMessages)
       sensors.requestTemperatures();
       float tempF = sensors.getTempFByIndex(0);
       String message = "The current water temp is " + String(tempF) + "ºF";
+      floatSwitchState = digitalRead(FLOAT_SWITCH_PIN);
+      String floatMessage = "Water level is " + floatSwitchState ? "Normal" : "LOW";
       bot.sendMessage(chat_id, message);
     }
-    else if (msg == "/resetnutrients")
+    else if (msg == "/dutchnutrient")
     {
-      // load saved data
-      // preferences.begin("nft", false);
-      // nutrientReminderEpoch = rtc.getEpoch();
-      // nutrientReminderEpoch = preferences.putULong64("nRE", nutrientReminderEpoch);
-      // preferences.end();
+      // update nutrients
+      updateNutrientReminder();
     }
     else
     {
