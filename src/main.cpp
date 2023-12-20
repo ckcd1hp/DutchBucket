@@ -16,15 +16,15 @@ void handleNewMessages(int numNewMessages);             // handling new messages
 void controlWaterPump(int currentHour, int currentMin); // turn on water pump 3 times a day for a minute each
 void checkFloatSwitch(int currentHour);                 // check float switch twice a day and warn user if water level is low
 
+#define WATER_PUMP_OVERRIDE_TIME 60000 // 1 minute override time
+
 extern ESP32Time rtc; // access esp32 internal real time clock
 
 int previousHour = -1;   // track the last hour to run functions once an hour
 int previousMinute = -1; // track the last minute to run functions once on the new minute
 
-// GPIO where the DS18B20 is connected to
-const int oneWireBus = 4;
 // oneWire instance to communicate with any OneWire devices
-OneWire oneWire(oneWireBus);
+OneWire oneWire(DS18B20_TEMP_PIN);
 // Pass oneWire reference to Dallas Temp Sensor
 DallasTemperature sensors(&oneWire);
 // Telegram bot
@@ -37,6 +37,8 @@ int floatSwitchState = 0;
 // maximum temp of the reservoir recorded
 float maxResTemp;
 bool waterPumpCommand = false;
+bool overridePump = false;
+unsigned long pumpOverrideMillis = 0;
 
 void setup()
 {
@@ -73,6 +75,9 @@ void setup()
 
 void loop()
 {
+  if (overridePump)
+    runPumpInManual();
+
   // checkWifiStatus();
   int currentMinute = rtc.getMinute();
   /* --------------- MINUTE CHANGE -------------------*/
@@ -124,6 +129,18 @@ void controlWaterPump(int currentHour, int currentMin)
   // set pump1 command
   digitalWrite(WATER_PUMP_1_PIN, waterPumpCommand ? HIGH : LOW);
 }
+// run pump in override for 1 minute
+void runPumpInManual()
+{
+  unsigned long now = millis(); // get current millis
+  if (now - pumpOverrideMillis > WATER_PUMP_OVERRIDE_TIME)
+  {
+    // turn pump off
+    overridePump = false;
+    // set pump1 command
+    digitalWrite(WATER_PUMP_1_PIN, LOW);
+  }
+}
 // check float switch at the beginning and end of day
 void checkFloatSwitch(int currentHour)
 {
@@ -167,6 +184,9 @@ void handleNewMessages(int numNewMessages)
     }
     else if (msg == "/dutchrun")
     {
+      overridePump = true;
+      pumpOverrideMillis = millis();
+      // set pump1 command
       digitalWrite(WATER_PUMP_1_PIN, HIGH);
       bot.sendMessage(chat_id, "Running water pump for 1 minute");
     }
