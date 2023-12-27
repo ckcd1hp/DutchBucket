@@ -217,10 +217,10 @@ void handleNewMessages(int numNewMessages)
     if (msg == "/help")
     {
       String welcome = "Welcome, " + from_name + ".\n";
-      welcome += "Use the following commands to control your outputs.\n\n";
-      welcome += "/led_on to turn GPIO ON \n";
-      welcome += "/led_off to turn GPIO OFF \n";
-      welcome += "/state to request current GPIO state \n";
+      welcome += "Here are the following available commands\n\n";
+      welcome += "/dutchrun to manually run the pump for 1 minute\n";
+      welcome += "/dutchtemp to read water temps\n";
+      welcome += "/dutchnutrient to update nutrient reminder for 2 weeks\n";
       bot.sendMessage(chat_id, welcome, "");
     }
     else if (msg == "/dutchrun")
