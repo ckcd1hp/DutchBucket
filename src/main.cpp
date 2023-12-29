@@ -15,6 +15,7 @@
 void handleNewMessages(int numNewMessages);             // handling new messages from telegram user
 void controlWaterPump(int currentHour, int currentMin); // turn on water pump 3 times a day for a minute each
 void checkFloatSwitch();                                // check float switch twice a day and warn user if water level is low
+void runPumpInManual();                                 // run pump manually for 1 minute
 
 #define WATER_PUMP_OVERRIDE_TIME 60000                  // 1 minute override time
 void sendNutrientReminder();                            // send reminder to refill nutrients every two weeks
@@ -28,6 +29,7 @@ extern ESP32Time rtc; // access esp32 internal real time clock
 
 int previousHour = -1;   // track the last hour to run functions once an hour
 int previousMinute = -1; // track the last minute to run functions once on the new minute
+int previousSecond = -1; // track the last second to run functions once on the second
 
 // oneWire instance to communicate with any OneWire devices
 OneWire oneWire(DS18B20_TEMP_PIN);
@@ -78,7 +80,7 @@ void setup()
   // update esp32 start counter
   startCounter++;
   preferences.putUInt("startCounter", startCounter);
-  Serial.println("Max Res Temp: " + String(maxResTemp));
+  Serial.println("Max Res Temp: " + String(maxResTemp) + "°F");
   preferences.end();
 }
 
@@ -88,49 +90,66 @@ void loop()
     runPumpInManual();
 
   // checkWifiStatus();
-  int currentMinute = rtc.getMinute();
-  /* --------------- MINUTE CHANGE -------------------*/
-  if (currentMinute != previousMinute)
+  int currentSec = rtc.getSecond();
+  /* --------------- SECOND CHANGE -------------------*/
+  if (currentSec != previousSecond)
   {
-    // get current hour 0-23
-    int currentHour = rtc.getHour(true);
-    // check to run pump for 1 min 3 times a day
-    controlWaterPump(currentMinute, currentHour);
-    // read reservoir temp every 15 minutes
-    if (currentMinute % 15 == 0)
+    // for messages every second
+    int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+    while (numNewMessages)
     {
-      sensors.requestTemperatures();
-      float tempF = sensors.getTempFByIndex(0);
-      Serial.print(tempF);
-      Serial.println("ºF");
-      if (tempF > maxResTemp)
+      handleNewMessages(numNewMessages);
+      numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+    }
+    int currentMinute = rtc.getMinute();
+    /* --------------- MINUTE CHANGE -------------------*/
+    if (currentMinute != previousMinute)
+    {
+      // get current hour 0-23
+      int currentHour = rtc.getHour(true);
+      // check to run pump for 1 min 3 times a day
+      controlWaterPump(currentMinute, currentHour);
+      // read reservoir temp every 15 minutes
+      if (currentMinute % 15 == 0)
       {
-        // load saved data
-        preferences.begin("dutchBucket", false);
-        maxResTemp = tempF;
-        preferences.putFloat("maxResTemp", maxResTemp);
-        preferences.end();
+        sensors.requestTemperatures();
+        float tempF = sensors.getTempFByIndex(0);
+        DebugLog(String(tempF) + "°F");
+        Serial.print(tempF);
+        Serial.println("°F");
+        if (tempF > maxResTemp)
+        {
+          // load saved data
+          preferences.begin("dutchBucket", false);
+          maxResTemp = tempF;
+          preferences.putFloat("maxResTemp", maxResTemp);
+          preferences.end();
+        }
       }
+      /* --------------- HOUR CHANGE -------------------*/
+      if (currentHour != previousHour)
+      {
+        // check float switch
+        // Update time using NTP at same time everyday
+        if (currentHour == NTP_SYNC_HOUR)
+          updateAndSyncTime();
+        if (currentHour == NUTRIENT_REMINDER_HOUR)
+          sendNutrientReminder();
+        if (currentHour == 6 or currentHour == 18)
+          checkFloatSwitch();
+        previousHour = currentHour;
+      }
+      previousMinute = currentMinute;
     }
-    /* --------------- HOUR CHANGE -------------------*/
-    if (currentHour != previousHour)
-    {
-      // check float switch
-      // Update time using NTP at same time everyday
-      if (currentHour == NTP_SYNC_HOUR)
-        updateAndSyncTime();
-      if (currentHour == NUTRIENT_REMINDER_HOUR)
-        sendNutrientReminder();
-      if (currentHour == 6 or currentHour == 18)
-        checkFloatSwitch();
-      previousHour = currentHour;
-    }
-    previousMinute = currentMinute;
+    previousSecond = currentSec;
   }
 }
 // run pump 3 times a day 1 minute at a time
 void controlWaterPump(int currentHour, int currentMin)
 {
+  // ignore if in override
+  if (overridePump)
+    return;
   if (currentMin == 0 and (currentHour == 6 or currentHour == 12 or currentHour == 18))
   {
     waterPumpCommand = true;
@@ -235,7 +254,7 @@ void handleNewMessages(int numNewMessages)
     {
       sensors.requestTemperatures();
       float tempF = sensors.getTempFByIndex(0);
-      String message = "The current water temp is " + String(tempF) + "ºF";
+      String message = "The current water temp is " + String(tempF) + "°F";
       floatSwitchState = digitalRead(FLOAT_SWITCH_PIN);
       String floatMessage = "Water level is " + floatSwitchState ? "Normal" : "LOW";
       bot.sendMessage(chat_id, message);

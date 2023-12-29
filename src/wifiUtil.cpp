@@ -1,4 +1,5 @@
 #include <AsyncElegantOTA.h> // must be declared once as library instantiates class in .h
+#include <WebSerial.h>
 #include "wifiUtil.h"
 #include "config.h"
 
@@ -11,6 +12,16 @@ ESP32Time rtc;           // no offset, as that is already added from NTPClient
 String lastNTPSync = ""; // update time from NTP server and sync to RTC
 
 unsigned long wifiPrevMillis = 0;
+
+#define DEBUG 1
+
+// #ifdef DEBUG
+// #define DebugLog(message)        \
+//     WebSerial.print("[DEBUG] "); \
+//     WebSerial.println(message)
+// #else
+// #define DebugLog(message)
+// #endif
 
 void setupWifi()
 {
@@ -28,6 +39,7 @@ void setupWifi()
     timeClient.begin();
 
     AsyncElegantOTA.begin(&server);
+    WebSerial.begin(&server);
     server.begin();
 }
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info)
@@ -87,5 +99,14 @@ void updateAndSyncTime()
         // unsuccessful update, display current unsynced RTC time
         Serial.println("Unable to connect to NTP or already updated within the last 30 minutes");
         Serial.println("RTC: " + rtc.getTime("%A, %B %d %Y %I:%M %p"));
+    }
+}
+
+void DebugLog(String message)
+{
+    if (DEBUG)
+    {
+        WebSerial.print("[DEBUG] ");
+        WebSerial.println(message);
     }
 }

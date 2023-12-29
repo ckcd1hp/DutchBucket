@@ -15,3 +15,4 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);               // on get
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info); // on disconnect
 void checkWifiStatus();                                                // periodically check if wifi has disconnected and try to reconnect
 void updateAndSyncTime();                                              // update RTC with NTP server
+void DebugLog(String message);                                         // Print to WebSerial if Debug is defined
